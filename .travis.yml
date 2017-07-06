@@ -15,11 +15,29 @@ cache:
 jobs:
   include:
   - env: ZVM_VERSION='4.3.12'
+    os: linux
+  - env: ZVM_VERSION='4.3.12'
+    os: osx
   - env: ZVM_VERSION='4.3.17'
+    os: linux
+  - env: ZVM_VERSION='4.3.17'
+    os: osx
   - env: ZVM_VERSION='5.0.8'
+    os: linux
+  - env: ZVM_VERSION='5.0.8'
+    os: osx
   - env: ZVM_VERSION='5.1.1'
+    os: linux
+  - env: ZVM_VERSION='5.1.1'
+    os: osx
   - env: ZVM_VERSION='5.2'
+    os: linux
+  - env: ZVM_VERSION='5.2'
+    os: osx
   - env: ZVM_VERSION='5.3.1'
+    os: linux
+  - env: ZVM_VERSION='5.3.1'
+    os: osx
   - stage: deploy
     script: skip
     deploy:
@@ -32,7 +50,6 @@ jobs:
       skip_cleanup: true
       on:
         tags: true
-
 
 before_script:
 - if [[ $(ls "$HOME/.zvm" | wc -l) -eq 0 ]]; then rm -rf "$HOME/.zvm"; fi
