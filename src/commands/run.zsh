@@ -249,9 +249,9 @@ function _zunit_run_testfile() {
   pattern='^ *@test  *([^ ].*)  *\{ *(.*)$'
 
   # Loop through each of the lines in the file
-  local oldIFS=$IFS
+  local oldIFS="$IFS"
   IFS=$'\n' lines=($(cat $testfile))
-  IFS=$oldIFS
+  IFS="$oldIFS"
   for line in $lines[@]; do
     # Match current line against pattern
     if [[ "$line" =~ $pattern ]]; then

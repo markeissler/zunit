@@ -76,7 +76,7 @@ function run() {
   unsetopt ERR_EXIT
 
   # Preserve current $IFS
-  local oldIFS=$IFS name
+  local oldIFS="$IFS" name
   local -a cmd
 
   # Store each word of the command in an array, and grab the first
@@ -102,7 +102,7 @@ function run() {
   lines=("${(@f)output}")
 
   # Restore $IFS
-  IFS=$oldIFS
+  IFS="$oldIFS"
 
   # Print the command output if --verbose is specified
   if [[ -n $verbose && -n $output ]]; then
@@ -121,7 +121,7 @@ function assert() {
   local -a comparisons
 
   # Preserve current $IFS
-  local oldIFS=$IFS
+  local oldIFS="$IFS"
   IFS=$'\n'
 
   # Store all comparison values in an array
@@ -155,7 +155,7 @@ function assert() {
   fi
 
   # Reset $IFS
-  IFS=$oldIFS
+  IFS="$oldIFS"
 }
 
 ###
