@@ -117,7 +117,7 @@ function run() {
 # Redirect the assertion shorthand to the correct function
 ###
 function assert() {
-  local value=$1 assertion=$2
+  local value="$1" assertion="$2"
   local -a comparisons
 
   # Preserve current $IFS
@@ -129,8 +129,8 @@ function assert() {
 
   # If no assertion is passed, then use the first value, as it
   # could be that the value is simply empty
-  if [[ -z $assertion ]]; then
-    assertion=$value
+  if [[ -z "$assertion" ]]; then
+    assertion="$value"
     value=""
   fi
 
@@ -144,7 +144,7 @@ function assert() {
   _zunit_assertion_count=$(( _zunit_assertion_count + 1 ))
 
   # Run the assertion
-  "_zunit_assert_${assertion}" $value ${(@f)comparisons[@]}
+  "_zunit_assert_${assertion}" "$value" ${(@f)comparisons[@]}
 
   local state=$?
 
