@@ -118,6 +118,11 @@ function _zunit_execute_test() {
     # Increment the test count
     total=$(( total + 1 ))
 
+    # DEBUG_ZSH_OPTS
+    if [[ ${DEBUG_ZSH_OPTS:-} -ne 0 ]]; then
+      echo $func > /tmp/zunit_body_func_$total.out
+    fi
+
     # Quietly eval the body into a variable as a first test
     output=$(eval "$(echo "$func")" 2>&1)
 
@@ -182,7 +187,11 @@ function _zunit_execute_test() {
       output="$(__zunit_async_test_wrapper 2>&1)"
     else
       # Launch the test, and capture the output in a variable
-      output="$(__zunit_tmp_test_function 2>&1)"
+      if [[ ${DEBUG_ZSH_OPTS:-} -ne 0 ]]; then
+        output="$(__zunit_tmp_test_function 2>&1 | tee /tmp/zunit_test_$total.out)"
+      else
+        output="$(__zunit_tmp_test_function 2>&1)"
+      fi
     fi
 
     # Output the result to the user
@@ -197,14 +206,14 @@ function _zunit_execute_test() {
       return
     elif [[ -z $allow_risky && $state -eq 248 ]]; then
       # If --verbose is specified, print test output to screen
-      [[ -n $verbose && -n $output ]] && echo $output
+      [[ -n $verbose && -n $output ]] && echo "$output"
 
       _zunit_warn 'No assertions were run, test is risky'
 
       return
     elif [[ -n $allow_risky && $state -eq 248 ]] || [[ $state -eq 0 ]]; then
       # If --verbose is specified, print test output to screen
-      [[ -n $verbose && -n $output ]] && echo $output
+      [[ -n $verbose && -n $output ]] && echo "$output"
 
       _zunit_success
 
@@ -307,9 +316,29 @@ function _zunit_run_testfile() {
   # A setup function has been defined
   if [[ -n $setup ]]; then
     # Print the body into a function declaration
-    setupfunc="function __zunit_test_setup() {
-      ${setup}
-    }"
+    if [[ -z $ZSH_OPTS ]]; then
+      setupfunc="function __zunit_test_setup() {
+        ${setup}
+      }"
+    else
+      setupfunc="function __zunit_test_setup() {
+        local zsh_opts_orig
+        {
+          _zunit_opts_apply \"${ZSH_OPTS}\" > /dev/null
+          zsh_opts_orig=\"${RETVAL}\"
+        }
+        ${setup}
+        {
+          _zunit_opts_apply \"\${zsh_opts_orig}\" > /dev/null
+        }
+        unset zsh_opts_orig
+      }"
+    fi
+
+    # DEBUG_ZSH_OPTS
+    if [[ ${DEBUG_ZSH_OPTS:-} -ne 0 ]]; then
+      echo $setupfunc > /tmp/zunit_setup_func.out
+    fi
 
     # Quietly eval the body into a variable as a first test
     output=$(eval "$(echo "$setupfunc")" 2>&1)
@@ -337,9 +366,29 @@ function _zunit_run_testfile() {
   # A teardown function has been defined
   if [[ -n $teardown ]]; then
     # Print the body into a function declaration
-    teardownfunc="function __zunit_test_teardown() {
-      ${teardown}
-    }"
+    if [[ -z $ZSH_OPTS ]]; then
+      teardownfunc="function __zunit_test_teardown() {
+        ${teardown}
+      }"
+    else
+      teardownfunc="function __zunit_test_teardown() {
+        local zsh_opts_orig
+        {
+          _zunit_opts_apply \"${ZSH_OPTS}\" > /dev/null
+          zsh_opts_orig=\"${RETVAL}\"
+        }
+        ${teardown}
+        {
+          _zunit_opts_apply \"\${zsh_opts_orig}\" > /dev/null
+        }
+        unset zsh_opts_orig
+      }"
+    fi
+
+    # DEBUG_ZSH_OPTS
+    if [[ ${DEBUG_ZSH_OPTS:-} -ne 0 ]]; then
+      echo $teardownfunc > /tmp/zunit_teardown_func.out
+    fi
 
     # Quietly eval the body into a variable as a first test
     output=$(eval "$(echo "$teardownfunc")" 2>&1)
@@ -368,7 +417,22 @@ function _zunit_run_testfile() {
   integer i=1
   local name body
   for name in "${test_names[@]}"; do
-    body="${tests[$i]}"
+    if [[ -z $ZSH_OPTS ]]; then
+      body="${tests[$i]}"
+    else
+      body="
+        local zsh_opts_orig
+        {
+          _zunit_opts_apply \"${ZSH_OPTS}\" > /dev/null
+          zsh_opts_orig=\"${RETVAL}\"
+        }
+        ${tests[$i]}
+        {
+          _zunit_opts_apply \"\${zsh_opts_orig}\" > /dev/null
+        }
+        unset zsh_opts_orig
+      "
+    fi
     _zunit_execute_test "$name" "$body"
     i=$(( i + 1 ))
   done
@@ -428,6 +492,62 @@ function _zunit_parse_argument() {
   echo $(color red "Test file or directory '$argument' could not be found") >&2
   exit 126
 }
+
+###
+# Apply ZSH opts and return a diff
+###
+function _zunit_opts_apply() {
+  local -a opts_list; opts_list=( "${=${1//:/ }}" )
+  local -a opts_diff=()
+  unset RETVAL
+
+  for opt in "${opts_list[@]}"; do
+    local opt_key="${opt%=*}"
+    local opt_val="${opt#*=}"
+    if [[ "${options[$opt_key]}" != "$opt_val" ]]; then
+      opts_diff+=( "$opt_key=${options[$opt_key]}" )
+      if [[ $opt_val == on ]]; then
+        setopt $opt_key
+      else
+        unsetopt $opt_key
+      fi
+    fi
+  done
+
+  RETVAL="${opts_diff[@]// /:}"
+
+  return
+}
+
+# function _zunit_opts_apply() {
+#   local -a opts_list; opts_list=("${(s/:/)1:l}")
+#   local -a opts_diff;
+#   unset RETVAL
+
+#   # iterate and capture each change
+#   for opt in $opts_list; do
+#     local opt_key="${opt%=*}"
+#     local opt_val="${opt#*=}"
+#     if [[ $options[$opt_key] != $opt_val ]]; then
+#       opts_diff+=("$opt_key=${options[$opt_key]}")
+#     fi
+#   done
+
+#   RETVAL="${(j/:/)opts_diff}"
+
+#   # iterate again and apply each update
+#   for opt in $opts_list; do
+#     local opt_key="${opt%=*}"
+#     local opt_val="${opt#*=}"
+#     if [[ $opt_val == on ]]; then
+#       setopt $opt_key
+#     else
+#       unsetopt $opt_key
+#     fi
+#   done
+
+#   return
+# }
 
 ###
 # Run tests
@@ -514,7 +634,23 @@ function _zunit_run() {
     # Look for a bootstrap script in the support directory,
     # and run it if it is available
     if [[ -f "$support/bootstrap" ]]; then
-      source "$support/bootstrap"
+      if [[ -n "${ZSH_OPTS}" ]]; then
+        local zsh_opts_orig=""
+        {
+          _zunit_opts_apply "${ZSH_OPTS}" > /dev/null
+          zsh_opts_orig="${RETVAL}"
+        }
+        source "$support/bootstrap"
+        {
+          _zunit_opts_apply "${zsh_opts_orig}" > /dev/null
+        }
+        unset zsh_opts_orig
+      else
+        source "$support/bootstrap"
+      fi
+      # [[ ${TESTS_KSH_ARRAYS:-} -eq 1 ]] && setopt ksh_arrays && setopt shwordsplit
+      # source "$support/bootstrap"
+      # [[ ${ZUNIT_KSH_ARRAYS:-} -eq 0 ]] && unsetopt ksh_arrays && unsetopt shwordsplit
       echo "$(color green '✔') Sourced bootstrap script $support/bootstrap"
     fi
   fi

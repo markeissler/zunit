@@ -106,7 +106,7 @@ function run() {
 
   # Print the command output if --verbose is specified
   if [[ -n $verbose && -n $output ]]; then
-    echo $output
+    echo "$output"
   fi
 
   # Restore the exit on error state
@@ -117,6 +117,12 @@ function run() {
 # Redirect the assertion shorthand to the correct function
 ###
 function assert() {
+  if [[ -n "${ZSH_OPTS}" ]]; then
+    local zsh_opts_orig=""
+    _zunit_opts_apply "${ZSH_OPTS}" > /dev/null
+    zsh_opts_orig="${RETVAL}"
+  fi
+
   local value=$1 assertion=$2
   local -a comparisons
 
@@ -135,7 +141,7 @@ function assert() {
   fi
 
   # Check that the requested assertion method exists
-  if (( ! $+functions[_zunit_assert_${assertion}] )); then
+  if (( ! ${+functions[_zunit_assert_${assertion}]} )); then
     echo "$(color red "Assertion $assertion does not exist")"
     exit 127
   fi
@@ -144,7 +150,7 @@ function assert() {
   _zunit_assertion_count=$(( _zunit_assertion_count + 1 ))
 
   # Run the assertion
-  "_zunit_assert_${assertion}" $value ${(@f)comparisons[@]}
+  "_zunit_assert_${assertion}" "$value" ${(@f)comparisons[@]}
 
   local state=$?
 
@@ -156,6 +162,11 @@ function assert() {
 
   # Reset $IFS
   IFS=$oldIFS
+
+  if [[ -n "${ZSH_OPTS}" ]]; then
+    _zunit_opts_apply "${zsh_opts_orig}" > /dev/null
+    unset zsh_opts_orig
+  fi
 }
 
 ###
